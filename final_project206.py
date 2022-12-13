@@ -10,6 +10,7 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 # Input: Database name
 # Output: Creates a database
 def setUpDatabase(db_name):
@@ -59,9 +60,19 @@ def create_yelp_cafes(cafes, cur, conn):
         city = i["location"]["city"]
         name = i["name"]
         rating = i["rating"]
-        price = i.get("price", "none")
+        if i.get("price", "none") == "$":
+            price = 1
+        elif i.get("price", "none") == "$$":
+            price = 2
+        elif i.get("price", "none") == "$$$":
+            price = 3
+        elif i.get("price", "none") == "$$$$":
+            price = 4
+        else:
+            price = 0
         cur.execute("INSERT INTO cafes (city,name,rating,price) VALUES (?,?,?,?)",(city, name, rating, price))  
     conn.commit()
+    
 
 # Input: Location, Offset
 # Output: Dictionary
@@ -77,8 +88,7 @@ def yelp_restaurants(location, offset):
     return restaurant_lst
 
 # Input: Dictionary, Cur, Conn
-# Output: A table based off Yelp restaurants data, sorted by city, restaurant name, 
-# rating, price level
+# Output: A table based off Yelp restaurants data, sorted by city, restaurant name, rating, price level
 def create_yelp_restaurants(restaurants, cur, conn):
     cur.execute("DROP TABLE IF EXISTS restaurants")
     cur.execute("CREATE TABLE restaurants (city TEXT, name TEXT, rating INTEGER, price TEXT)")
@@ -87,7 +97,16 @@ def create_yelp_restaurants(restaurants, cur, conn):
         city = i["location"]["city"]
         name = i["name"]
         rating = i["rating"]
-        price = i.get("price", "none")
+        if i.get("price", "none") == "$":
+            price = 1
+        elif i.get("price", "none") == "$$":
+            price = 2
+        elif i.get("price", "none") == "$$$":
+            price = 3
+        elif i.get("price", "none") == "$$$$":
+            price = 4
+        else:
+            price = 0
         cur.execute("INSERT INTO restaurants (city,name,rating,price) VALUES (?,?,?,?)",(city, name, rating, price))  
     conn.commit()
 
@@ -119,8 +138,7 @@ def population_table(pop_dict, cur, conn):
 
 # Input: Cur, Conn
 # Output: Dictionary 
-# About: We selected city + cafe rating from our cafe data and calculated the average 
-# ratings of cafes in each city
+# About: We selected city + cafe rating from our cafe data and calculated the average ratings of cafes in each city
 def avg_yelp_cafes(cur, conn):
     cur.execute('SELECT city,rating FROM cafes ORDER BY rating DESC')
     avg_cafes_ratings = cur.fetchall()
@@ -138,8 +156,7 @@ def avg_yelp_cafes(cur, conn):
 
 # Input: Cur, Conn
 # Output: Dictionary 
-# About: We selected city + restaurant rating from our restaurant data and calculated the average 
-# ratings of restaurants in each city
+# About: We selected city + restaurant rating from our restaurant data and calculated the average ratings of restaurants in each city
 def avg_yelp_restaurants(cur, conn):
     cur.execute('SELECT city,rating FROM restaurants ORDER BY rating DESC')
     avg_res_ratings = cur.fetchall()
@@ -156,9 +173,46 @@ def avg_yelp_restaurants(cur, conn):
     return avg_res_dict
 
 # Input: Cur, Conn
+# Output: Dictionary 
+# About: We selected city + cafe price level from our cafe data and calculated the average price level of cafes in each city
+def avg_yelp_cafes_price(cur, conn):
+    cur.execute('SELECT city,price FROM cafes ORDER BY price DESC')
+    avg_cafes_price = cur.fetchall()
+    conn.commit()
+    c_avg_price_dict = {}
+    for i in avg_cafes_price:
+        if i[0] in c_avg_price_dict.keys():
+            c_avg_price_dict[i[0]].append(int(i[1]))
+        else:
+            c_avg_price_dict[i[0]] = [int(i[1])]
+    for x in c_avg_price_dict:
+        c_avg_price_dict[x] = round((sum(c_avg_price_dict[x])) / len(c_avg_price_dict[x]), 2)
+    c_avg_price_dict = dict(sorted(c_avg_price_dict.items(), key=lambda item: item[1], reverse=True))
+    return c_avg_price_dict
+
+# Input: Cur, Conn
+# Output: Dictionary 
+# About: We selected city + restaurant price level from our restaurant data and calculated the average price level of restaurants in each city
+def avg_yelp_restaurants_price(cur, conn):
+    cur.execute('SELECT city,price FROM restaurants ORDER BY price DESC')
+    avg_res_price = cur.fetchall()
+    conn.commit()
+    r_avg_price_dict = {}
+    for i in avg_res_price:
+        if i[0] in r_avg_price_dict.keys():
+           r_avg_price_dict[i[0]].append(int(i[1]))
+        else:
+            r_avg_price_dict[i[0]] = [int(i[1])]
+    print(r_avg_price_dict)
+    for x in r_avg_price_dict:
+        r_avg_price_dict[x] = round((sum(r_avg_price_dict[x])) / len(r_avg_price_dict[x]), 2)
+    r_avg_price_dict = dict(sorted(r_avg_price_dict.items(), key=lambda item: item[1], reverse=True))
+    return r_avg_price_dict
+
+
+# Input: Cur, Conn
 # Output: List
-# About: Joins restaurants data and population data in a tuple format: (City name, Population, 
-# Average restaurant ratings)
+# About: Joins restaurants data and population data in a tuple format: (City name, Population, Average restaurant ratings)
 def res_pop_join(cur, conn):
     cur.execute('SELECT restaurants.city, population.pop, ROUND(AVG(restaurants.rating), 2) FROM restaurants JOIN population ON restaurants.city = population.city GROUP BY restaurants.city')
     result = cur.fetchall()
@@ -167,64 +221,33 @@ def res_pop_join(cur, conn):
 
 # Input: Cur, Conn
 # Output: Dictionary
-# About: Joins restaurants data and population data in a dictionary format: {City name: (Population, 
-# Average restaurant price level) + also changes all price level from string format to integer
-# format
+# About: Joins restaurants data and population data in a dictionary format: {City name: (Population, Average restaurant price level) 
 def res_price_pop_join(cur, conn):
-    cur.execute('SELECT restaurants.city, population.pop, restaurants.price FROM restaurants JOIN population ON restaurants.city = population.city GROUP BY restaurants.city')
+    cur.execute('SELECT restaurants.city, population.pop, ROUND(AVG(restaurants.price), 2) FROM restaurants JOIN population ON restaurants.city = population.city GROUP BY restaurants.city')
     result = cur.fetchall()
-    res_price_dict = {}
-    for i in result:
-        if i[2].strip() == '$':
-            res_price_dict[i[0]] = (i[1], 1)
-        elif i[2].strip() == '$$':
-            res_price_dict[i[0]] = (i[1], 2)
-        elif i[2].strip() == '$$$':
-            res_price_dict[i[0]] = (i[1], 3)
-        elif i[2].strip() == '$$$$':
-            res_price_dict[i[0]] = (i[1], 4)
-        else:
-            res_price_dict[i[0]] = (i[1], 0)
-    # print(res_price_dict)
-    return res_price_dict
+    return result
+
 
 # Input: Cur, Conn
 # Output: List
-# About: Joins cafe data and population data in a tuple format: (City name, Population, 
-# Average cafe ratings)
+# About: Joins cafe data and population data in a tuple format: (City name, Population, Average cafe ratings)
 def cafe_pop_join(cur, conn):
     cur.execute('SELECT cafes.city, population.pop, ROUND(AVG(cafes.rating), 2) FROM cafes JOIN population ON cafes.city = population.city GROUP BY cafes.city')
     result = cur.fetchall()
-    # print(result)
+    print(result)
     return result
 
 # Input: Cur, Conn
 # Output: Dictionary
-# About: Joins cafe data and population data in a dictionary format: {City name: (Population, 
-# Average cafe price level) + also changes all price level from string format to integer
-# format
+# About: Joins cafe data and population data in a dictionary format: {City name: (Population, Average cafe price level) 
 def cafe_price_pop_join(cur, conn):
-    cur.execute('SELECT cafes.city, population.pop, cafes.price FROM cafes JOIN population ON cafes.city = population.city GROUP BY cafes.city')
+    cur.execute('SELECT cafes.city, population.pop, ROUND(AVG(cafes.price), 2) FROM cafes JOIN population ON cafes.city = population.city GROUP BY cafes.city')
     result = cur.fetchall()
-    cafe_price_dict = {}
-    for i in result:
-        if i[2].strip() == '$':
-            cafe_price_dict[i[0]] = (i[1], 1)
-        elif i[2].strip() == '$$':
-            cafe_price_dict[i[0]] = (i[1], 2)
-        elif i[2].strip() == '$$$':
-            cafe_price_dict[i[0]] = (i[1], 3)
-        elif i[2].strip() == '$$$$':
-            cafe_price_dict[i[0]] = (i[1], 4)
-        else:
-            cafe_price_dict[i[0]] = (i[1], 0)
-    print(cafe_price_dict)
-    return cafe_price_dict
+    return result
 
 # Input: Data table, File name
 # Output: CSV File
-# About: Writes the csv file for dot plot of "Average Ratings of California Cities 
-# Places vs. Population"
+# About: Writes the csv file for dot plot of "Average Ratings of California Cities Places vs. Population"
 def write_csv_dot(data1, filename):
     f = open(filename, "w")
     f.write("Average Ratings of California Cities Places vs. Population")
@@ -237,22 +260,20 @@ def write_csv_dot(data1, filename):
 
 # Input: Data table, File name
 # Output: CSV File
-# About: Writes the csv file for dot plot of "Average Price Levels of California Cities 
-# Places vs. Population"
+# About: Writes the csv file for dot plot of "Average Price Levels of California Cities Places vs. Population"
 def write_csv_dot_price(data1, filename):
     f = open(filename, "w")
     f.write("Average Price Levels of California Cities Places vs. Population")
     f.write('\n')
     f.write("Population, Average Price Levels")
     f.write('\n')
-    for i in data1.keys():
-        f.write(str(data1[i][0]) + "," + str(data1[i][1]))
+    for i in data1:
+        f.write(str(i[1]) + "," + str(i[2]))
         f.write('\n')
 
 # Input: Data table, File name
 # Output: CSV File
-# About: Writes the csv file for bar plot of "Average Ratings of California Cities 
-# Cafes vs. Restaurants"
+# About: Writes the csv file for bar plot of "Average Ratings of California Cities Cafes vs. Restaurants"
 def write_csv_bar(data1, data2, filename):
     f = open(filename, "w")
     f.write("Average Ratings of California Cities Cafes vs. Restaurants")
@@ -266,17 +287,17 @@ def write_csv_bar(data1, data2, filename):
 
 # Input: Data table, File name
 # Output: CSV File
-# About: Writes the csv file for bar plot of "Average Price Levels of California Cities 
-# Cafes vs. Restaurants"
+# About: Writes the csv file for bar plot of "Average Price Levels of California Cities Cafes vs. Restaurants"
 def write_csv_bar_price(data1, data2, filename):
     f = open(filename, "w")
     f.write("Average Price Levels of California Cities Cafes vs. Restaurants")
     f.write('\n')
     f.write("City, Average Cafe Price Levels, Average Restaurant Price Levels")
     f.write('\n')
-    for i in data1.keys():
+    print(data1)
+    for i in data1:
         if (i in data1.keys()) and (i in data2.keys()):
-            f.write(i + "," + str(data1[i][1]) + "," + str(data2[i][1]))
+            f.write(i + "," + str(data1[i]) + "," + str(data2[i]))
             f.write('\n')
 
 #ratings
@@ -353,6 +374,7 @@ def cali_dot_plot(file1, file2):
     # Second Scatter plot
     ax.scatter(res_population, res_avg_ratings, edgecolor ="red", c=['#bd64bd'])
 
+    ax.legend(["Cafe", "Restaurant"])
     ax.set_title('City Population vs. Average Cafe and Restaurant Ratings')
     ax.set_xlabel('City Population (in millions)')
     ax.set_ylabel('Average Ratings')
@@ -388,6 +410,7 @@ def cali_price_bar_graph(file):
     ax.set_xticks(x, city)
     ax.set_xticklabels(ax.get_xticklabels(), rotation = 90)
 
+    
     ax.legend()
 
     # ax.bar_label(rects1, padding=10)
@@ -433,6 +456,7 @@ def cali_price_dot_plot(file1, file2):
     # Second Scatter plot
     ax.scatter(res_population, res_avg_price, edgecolor ="red", c=['#eddb3b'])
 
+    ax.legend(["Cafe", "Restaurant"])
     ax.set_title('City Population vs. Average Cafe and Restaurant Price Level')
     ax.set_xlabel('City Population (in millions)')
     ax.set_ylabel('Average Price Level')
@@ -468,11 +492,13 @@ def main():
     write_csv_bar(cafes_avg, restaurants_avg, "ratings_by_city.csv")
     cali_bar_graph("ratings_by_city.csv")
     cali_dot_plot("cafes_population.csv", "res_population.csv")
+    res_price_avg = avg_yelp_restaurants_price(cur, conn)
+    cafe_price_avg = avg_yelp_cafes_price(cur, conn)
     res_price = res_price_pop_join(cur, conn)
     cafe_price = cafe_price_pop_join(cur, conn)
     write_csv_dot_price(res_price, "res_price_pop.csv")
     write_csv_dot_price(cafe_price, "cafe_price_pop.csv")
-    write_csv_bar_price(cafe_price, res_price, "price_by_city.csv")
+    write_csv_bar_price(cafe_price_avg, res_price_avg, "price_by_city.csv")
     cali_price_bar_graph("price_by_city.csv")
     cali_price_dot_plot("cafe_price_pop.csv", "res_price_pop.csv")
 
